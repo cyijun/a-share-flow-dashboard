@@ -52,6 +52,16 @@ class PublishGuardTests(unittest.TestCase):
             self.assertEqual((backup / "version.txt").read_text(encoding="utf-8"), "old")
 
 
+class DashboardPaletteTests(unittest.TestCase):
+    def test_china_market_uses_red_up_green_down(self) -> None:
+        source = (ROOT / "scripts/render_dashboard.py").read_text(encoding="utf-8")
+        self.assertIn("--up:#b74337", source)
+        self.assertIn("--down:#18705a", source)
+        self.assertIn(".positive{background:var(--up)}", source)
+        self.assertIn(".negative{background:var(--down)}", source)
+        self.assertIn("td.pos{color:var(--up)}td.neg{color:var(--down)}", source)
+
+
 class RankingGuardTests(unittest.TestCase):
     def test_rps_uses_raw_return_and_average_rank_for_true_ties(self) -> None:
         rows = [
