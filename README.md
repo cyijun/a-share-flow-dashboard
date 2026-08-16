@@ -21,7 +21,7 @@
 ## 快速开始
 
 ```bash
-git clone <仓库地址>
+git clone https://github.com/cyijun/a-share-flow-dashboard.git
 cd a-share-flow-dashboard
 cp .env.example .env
 ```
@@ -101,7 +101,7 @@ outputs/
     └── report.html                  # 自包含网页
 ```
 
-`outputs/` 与 `.env` 已加入 `.gitignore`，真实 token、原始行情和生成快照不会进入仓库。
+`outputs/` 与 `.env` 已加入 `.gitignore`，并由仓库安全测试持续检查；真实 token、原始行情和生成快照不会进入仓库。
 
 ## 计算口径
 
@@ -146,7 +146,7 @@ python3 -m unittest discover -s tests -v
 
 ## 自动运行
 
-建议在交易日北京时间18:00以后执行，避免部分日终数据尚未入库。仓库提供 `automation/com.wayne.flow-track.plist.example`，可按实际克隆路径修改后用于 macOS `launchd`；模板默认周一至周五18:30运行，不会自动写入 `~/Library/LaunchAgents`。
+建议在交易日北京时间18:00以后执行，避免部分日终数据尚未入库。仓库提供 `automation/com.local.a-share-flow-dashboard.plist.example`，可按实际克隆路径修改后用于 macOS `launchd`；模板默认周一至周五18:30运行，不会自动写入 `~/Library/LaunchAgents`。
 
 ## 安全与限制
 
@@ -155,5 +155,12 @@ python3 -m unittest discover -s tests -v
 - 同花顺资金流与标准 `moneyflow` 算法不同，后者只作独立交叉复核。
 - 个股THS资金榜的准确名称是“沪深个股资金榜”；不要把它解释为含北交所的全A资金榜。
 - ETF份额变化能观察申赎，但不能直接代表“国家队”或任何单一机构的交易。
+
+## 开源许可与数据边界
+
+- 本仓库自行编写的源代码采用 [MIT License](LICENSE)。该许可不涵盖通过第三方接口取得的行情、行业分类、基金份额及其他数据。
+- 仓库不提供 Tushare token，也不提交或分发 `outputs/` 下的原始数据、派生榜单和网页快照。每位使用者必须自行取得合法的数据访问权限，并遵守 [Tushare用户协议](https://tushare.pro/document/1?doc_id=409) 与 [Tushare数据服务协议](https://tushare.pro/document/1?doc_id=405)。
+- 请勿将本项目用于转让、共享或出售 Tushare 账号、token、接口权限或数据服务；公开部署、商业使用或再分发数据前，应另行确认所需授权。
+- 本项目是独立的非官方研究工具，与 Tushare、同花顺及其关联公司不存在隶属、赞助、背书或授权关系；相关名称仅用于说明数据来源和分析口径。
 
 旧版五日实验脚本 `scripts/ths_five_day_flow.py` 仍作为通用 Tushare 客户端与基础校验工具被主脚本复用。

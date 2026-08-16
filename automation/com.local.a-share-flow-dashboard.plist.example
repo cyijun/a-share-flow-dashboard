@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.wayne.flow-track</string>
+  <string>com.local.a-share-flow-dashboard</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
