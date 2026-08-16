@@ -27,6 +27,20 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 API_URL = "https://api.tushare.pro"
+API_ROW_LIMITS = {
+    "moneyflow_ind_ths": 5000,
+    "moneyflow_ths": 6000,
+    "moneyflow": 6000,
+    "daily": 6000,
+    "adj_factor": 6000,
+    "daily_basic": 6000,
+    "stock_basic": 6000,
+    "ths_index": 5000,
+    "ths_member": 5000,
+    "fund_basic": 5000,
+    "fund_daily": 5000,
+    "fund_share": 2000,
+}
 DOC_URLS = {
     "ths_hot": "https://tushare.pro/document/2?doc_id=320",
     "moneyflow_ind_ths": "https://tushare.pro/document/2?doc_id=343",
@@ -117,6 +131,19 @@ def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def assert_api_batch(api_name: str, rows: list[dict], partition: str = "") -> None:
+    """阻断空分区与疑似触顶截断；不同接口使用各自官方单次上限。"""
+    suffix = f"（{partition}）" if partition else ""
+    if not rows:
+        raise RuntimeError(f"{api_name}{suffix} 返回0行，可能尚未落库或请求口径错误")
+    limit = API_ROW_LIMITS.get(api_name)
+    if limit is not None and len(rows) >= limit:
+        raise RuntimeError(
+            f"{api_name}{suffix} 返回{len(rows)}行，已触及单次上限{limit}，"
+            "可能被截断；请拆分请求后再发布"
+        )
+
+
 class TushareClient:
     def __init__(self, token: str) -> None:
         if not token:
@@ -180,6 +207,7 @@ def fetch_by_date(client: TushareClient, api_name: str, dates: list[str], fields
     rows: list[dict] = []
     for trade_date in dates:
         batch = client.call(api_name, {"trade_date": trade_date}, fields)
+        assert_api_batch(api_name, batch, trade_date)
         rows.extend(batch)
         print(f"{api_name} {trade_date}: {len(batch)} rows", flush=True)
     return rows
@@ -232,7 +260,9 @@ def fetch_members(
     failures: dict[str, str] = {}
 
     def one(code: str) -> tuple[str, list[dict]]:
-        return code, client.call("ths_member", {"ts_code": code})
+        rows = client.call("ths_member", {"ts_code": code})
+        assert_api_batch("ths_member", rows, code)
+        return code, rows
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {pool.submit(one, str(row["ts_code"])): str(row["ts_code"]) for row in industries}
