@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -31,6 +33,20 @@ def latest_snapshot(output_root: Path) -> Path:
     return candidates[-1]
 
 
+def publish_validated_snapshot(snapshot: Path, output_root: Path) -> tuple[Path, Path | None]:
+    """仅在渲染和独立验证通过后，把整份快照原子切换到正式目录。"""
+    destination = output_root / snapshot.name
+    backup: Path | None = None
+    if destination.exists():
+        backup_root = output_root / "_previous"
+        backup_root.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%dT%H%M%S%z")
+        backup = backup_root / f"{destination.name}.{stamp}.{os.getpid()}"
+        os.replace(destination, backup)
+    os.replace(snapshot, destination)
+    return destination, backup
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--as-of", default=datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d"))
@@ -44,18 +60,29 @@ def main() -> int:
     if not output_root.is_absolute():
         output_root = (ROOT / output_root).resolve()
 
+    pipeline_root: Path | None = None
     if not args.skip_data:
+        output_root.mkdir(parents=True, exist_ok=True)
+        pipeline_root = Path(tempfile.mkdtemp(prefix=".pipeline-", dir=output_root))
         run([
             sys.executable, "scripts/market_flow_dashboard.py",
             "--as-of", args.as_of,
             "--flow-days", args.flow_days,
             "--rps-days", args.rps_days,
             "--market-cap-floor", str(args.market_cap_floor),
-            "--output-root", str(output_root),
+            "--output-root", str(pipeline_root),
         ])
-    snapshot = latest_snapshot(output_root)
+    snapshot = latest_snapshot(pipeline_root if pipeline_root else output_root)
     run([sys.executable, "scripts/render_dashboard.py", str(snapshot)])
     run([sys.executable, "scripts/validate_market_dashboard.py", str(snapshot)])
+    if pipeline_root:
+        snapshot, backup = publish_validated_snapshot(snapshot, output_root)
+        if backup:
+            print(f"上一版快照已移至可恢复备份：{backup}", flush=True)
+        try:
+            pipeline_root.rmdir()
+        except OSError:
+            pass
 
     latest_html = output_root / "latest.html"
     shutil.copy2(snapshot / "report.html", latest_html)

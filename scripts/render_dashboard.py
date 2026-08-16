@@ -139,8 +139,8 @@ def main() -> int:
     cards = [
         ("行业最大净流入", top_ind_in.get("industry", "—"), fmt(top_ind_in.get(f"net_{primary_key}_yi")) + " 亿元", "up"),
         ("行业最大净流出", top_ind_out.get("industry", "—"), fmt(top_ind_out.get(f"net_{primary_key}_yi")) + " 亿元", "down"),
-        ("个股最大净流入", top_stock_in.get("name", "—"), fmt(num(top_stock_in.get(f"net_{primary_key}_wan")) / 10000) + " 亿元", "up"),
-        ("个股最大净流出", top_stock_out.get("name", "—"), fmt(num(top_stock_out.get(f"net_{primary_key}_wan")) / 10000) + " 亿元", "down"),
+        ("沪深个股最大净流入", top_stock_in.get("name", "—"), fmt(num(top_stock_in.get(f"net_{primary_key}_wan")) / 10000) + " 亿元", "up"),
+        ("沪深个股最大净流出", top_stock_out.get("name", "—"), fmt(num(top_stock_out.get(f"net_{primary_key}_wan")) / 10000) + " 亿元", "down"),
     ]
     cards_html = "".join(
         f'<div class="kpi {tone}"><span>{esc(label)} · {primary_days}日</span><strong>{esc(name)}</strong><b>{esc(value)}</b></div>'
@@ -150,23 +150,25 @@ def main() -> int:
     sections: list[str] = [turnover_chart(turnover)]
     for window in flow_windows:
         key, days, label = window["key"], int(window["days"]), window["label"]
+        industry_window = [row for row in industry if row.get(f"{key}_inflow_rank") not in (None, "")]
+        stock_window = [row for row in stocks if row.get(f"{key}_inflow_rank") not in (None, "")]
         sections.append(f'<div class="section-title"><span>{days:02d}</span><div><h2>{esc(label)}资金流</h2><p>最近{days}个交易日累计净额</p></div></div>')
         sections.append('<div class="grid two">')
         sections.append(signed_bar_chart(
             f"同花顺行业 · {label}净流入前十", "单位：亿元",
-            rank_rows(industry, f"net_{key}_yi", "industry", True),
+            rank_rows(industry_window, f"net_{key}_yi", "industry", True),
         ))
         sections.append(signed_bar_chart(
             f"同花顺行业 · {label}净流出前十", "单位：亿元；保留负号",
-            rank_rows(industry, f"net_{key}_yi", "industry", False),
+            rank_rows(industry_window, f"net_{key}_yi", "industry", False),
         ))
         sections.append(signed_bar_chart(
-            f"A股个股 · {label}净流入前十", "单位：亿元",
-            rank_rows(stocks, f"net_{key}_wan", "name", True, divisor=10000),
+            f"沪深个股 · {label}净流入前十", "单位：亿元；仅完整覆盖窗口及最新日的样本",
+            rank_rows(stock_window, f"net_{key}_wan", "name", True, divisor=10000),
         ))
         sections.append(signed_bar_chart(
-            f"A股个股 · {label}净流出前十", "单位：亿元；保留负号",
-            rank_rows(stocks, f"net_{key}_wan", "name", False, divisor=10000),
+            f"沪深个股 · {label}净流出前十", "单位：亿元；仅完整覆盖窗口及最新日的样本",
+            rank_rows(stock_window, f"net_{key}_wan", "name", False, divisor=10000),
         ))
         sections.append("</div>")
 
@@ -183,7 +185,7 @@ def main() -> int:
     sections.append("</div>")
     largecap_top = sorted(largecap, key=lambda row: abs(num(row.get(ratio_field))), reverse=True)[:20]
     sections.append(table(
-        "大市值个股资金强度明细（绝对占比前20）", largecap_top,
+        "沪深大市值个股资金强度明细（绝对占比前20）", largecap_top,
         [("name", "名称", None), ("ts_code", "代码", None), ("total_mv_yi", "总市值/亿元", lambda x: fmt(x)),
          (f"net_{primary_key}_wan", f"{primary_days}日净额/亿元", lambda x: fmt(num(x) / 10000)),
          (ratio_field, "净额/市值 %", lambda x: fmt(x, 4))],
@@ -236,9 +238,9 @@ def main() -> int:
 @media(max-width:560px){.container{padding-left:14px;padding-right:14px}.kpis{grid-template-columns:1fr;margin-top:-48px}.hero{padding-left:20px;padding-right:20px}.panel{padding:16px}.turnover-grid{overflow-x:auto}.turnover-item{min-width:22px}.bar-name small{display:none}.bar-name span{width:18px}.section-title h2{font-size:23px}}
 """
     document = f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A股资金流、RPS与ETF仪表盘 · {latest_label}</title><style>{css}</style></head><body>
-<section class="hero"><div class="eyebrow">A-SHARE CAPITAL FLOW MONITOR</div><h1>A股资金流<br>与相对强度仪表盘</h1><p>按同花顺行业模板观察资金主线，并同步展示个股绝对净额、市值归一化强度、全市场RPS与ETF申赎估算。</p><div class="meta"><span>数据截止 <b>{latest_label}</b></span><span>资金流 <b>{esc(flow_text)}</b></span><span>RPS <b>{esc(rps_text)}</b></span><span>质量状态 <b>{esc(summary['quality_status'])}</b></span></div></section>
+<section class="hero"><div class="eyebrow">A-SHARE CAPITAL FLOW MONITOR</div><h1>A股资金流<br>与相对强度仪表盘</h1><p>按同花顺行业模板观察资金主线；个股THS资金榜覆盖沪深市场，全市场RPS包含北交所，二者不混用样本口径。</p><div class="meta"><span>数据截止 <b>{latest_label}</b></span><span>资金流 <b>{esc(flow_text)}</b></span><span>RPS <b>{esc(rps_text)}</b></span><span>质量状态 <b>{esc(summary['quality_status'])}</b></span></div></section>
 <main class="container"><section class="kpis">{cards_html}</section>{''.join(sections)}
-<footer class="footer">数据源：Tushare Pro。行业使用 moneyflow_ind_ths；个股使用 moneyflow_ths；标准 moneyflow 仅作交叉复核。ETF资金为份额变化乘收盘价的估算，不能识别央行、汇金或其他具体主体。本页面不构成投资建议。<br>生成时间：{esc(summary['generated_at'])} · 快照：{esc(output_dir.name)}</footer></main></body></html>"""
+<footer class="footer">数据源：Tushare Pro。行业使用 moneyflow_ind_ths；沪深个股使用 moneyflow_ths；北交所仅保留标准 moneyflow 独立复核数据，不与THS榜混排。ths_member是当前且非互斥的成员快照，行业不可跨板块求和。ETF资金为份额变化乘收盘价的估算，不能识别央行、汇金或其他具体主体。本页面不构成投资建议。<br>生成时间：{esc(summary['generated_at'])} · 快照：{esc(output_dir.name)}</footer></main></body></html>"""
     destination = output_dir / "report.html"
     destination.write_text(document, encoding="utf-8")
     print(destination)
